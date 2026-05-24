@@ -8,7 +8,7 @@ It runs configurable optimization sweeps:
 backend server-parameter candidates × workload constraints × repeats
 ```
 
-`serve_configs` / generated `search_space` candidates are the degrees of freedom. Workload fields like input tokens, output tokens, and concurrency are the constraints. The platform produces raw logs/results, `candidates.csv`, `measurements.csv`, objective rankings, Markdown reports, and plots.
+`serve_configs` / generated `search_space` candidates are the degrees of freedom. Workload fields like input tokens, output tokens, and concurrency are the constraints. The platform produces raw logs/results, `candidates.csv`, `measurements.csv`, objective rankings, a Markdown summary (`report.md`), and a self-contained interactive HTML report (`report.html`) for exploring tradeoffs in a browser. PNG plots are available as opt-in via `--plots`.
 
 ## Install
 
@@ -44,6 +44,22 @@ This creates:
 ```
 
 using `pip install --only-binary=:all: vllm sglang` style installs to avoid local compilation. See [BACKENDS.md](BACKENDS.md) for version pins, custom indexes, editable source builds, and using existing repo venvs.
+
+### Docker
+
+A `Dockerfile` is included that bundles the platform plus pre-built vLLM and SGLang backend venvs:
+
+```bash
+docker build -t moe-bench .
+docker run --rm -it --gpus all \
+  -v $HOME/.cache/huggingface:/root/.cache/huggingface \
+  -v $(pwd)/results:/app/moe-bench/results \
+  moe-bench
+# inside the container:
+moe-bench run configs/moe_parallelism_4gpu.yaml --report
+```
+
+See [BACKENDS.md](BACKENDS.md) for build-arg overrides (`VLLM_PACKAGE`, `SGLANG_PACKAGE`, `PYTHON_VERSION`).
 
 ## Config style
 
@@ -110,32 +126,55 @@ Run a sweep:
 moe-bench run configs/qwen3_a3b.yaml --report
 ```
 
-Post-process an existing run:
+`--report` triggers `normalize → rank → report` after the run and emits both `report.md` and `report.html`. The HTML report is on by default; disable it with `--no-html`. PNG plots are off by default; enable them with `--plots`.
+
+Override config fields from the CLI without editing YAML (useful for reusing one config across models):
+
+```bash
+moe-bench run configs/moe_parallelism_4gpu.yaml \
+  --model Qwen/Qwen3-30B-A3B \
+  --run-id my-run \
+  --served-model-name moe-bench-my-run \
+  --dtype bfloat16 \
+  --report
+```
+
+Post-process an existing run (idempotent — safe to re-run):
 
 ```bash
 moe-bench normalize results/<run_id>
-moe-bench rank results/<run_id>
-moe-bench report results/<run_id>
+moe-bench rank      results/<run_id>
+moe-bench report    results/<run_id>           # writes report.md + report.html
+moe-bench report    results/<run_id> --plots   # also emit PNG plots
 ```
 
-Control plot legend detail without hiding candidate details:
+Driver scripts that handle GPU cleanup between backends (vLLM and SGLang can't share GPUs simultaneously) and run a full sweep end-to-end:
+
+```bash
+./scripts/run_qwen3_a3b_grid.sh        # full grid sweep
+./scripts/run_qwen3_a3b_quick.sh       # smaller quick sweep
+./scripts/run_parallelism_sweep.sh     # parallelism-focused sweep (TP/DP/EP)
+```
+
+The parallelism driver is parameterized via env vars: `MODEL`, `RUN_ID`, `SERVED_MODEL_NAME`, `DTYPE`, `CONFIG`, `CUDA_VISIBLE_DEVICES`.
+
+### Interactive HTML report
+
+`report.html` is a single self-contained file (Plotly JS inlined, measurement JSON embedded) — open it directly in a browser, no server required. Sections:
+
+- **Scientific summary** — decision summary, operating curve, latency vs prompt length, decision map, tuning sensitivity
+- **Drill into candidates** — global winner, robustness leaderboard, constraint-slider leaderboard (filter live on `p99_ttft_ms` / `p99_tpot_ms`), Pareto front, parameter parcoords, per-workload drilldown, per-candidate cards
+
+### Optional PNG plots
+
+Pass `--plots` to additionally emit decision-oriented PNGs under `results/<run_id>/plots/`: top-k by workload, winning throughput, Pareto, throughput/latency heatmaps, backend win counts, coverage/failure heatmap. Control legend density without hiding candidate details:
 
 ```yaml
 report:
   legend_params: [max_num_seqs, max_running_requests, max_num_batched_tokens]
 ```
 
-The plots use only those parameters in labels; `candidates.csv` contains the curated top tuning parameters for deep dives without dumping every backend default.
-
-Current plots are decision-oriented:
-
-- `topk_candidates_by_workload.png` — top server candidates per workload constraint
-- `winning_throughput_by_workload.png` — winning throughput per workload
-- `winner_latency_by_workload.png` — TTFT/TPOT latency of the selected winner
-- `pareto_throughput_vs_ttft.png` and `pareto_throughput_vs_tpot.png` — throughput/latency tradeoff
-- `best_throughput_heatmap_out*.png` plus winner latency heatmaps — workload grid view
-- `backend_win_counts.png` and `backend_best_throughput_ratio.png` — backend-level comparison
-- `coverage_failure_heatmap.png` — failures/coverage by candidate and workload
+The plots use only those parameters in labels; `candidates.csv` carries the full curated tuning parameters for deep dives.
 
 Create a validation config from the top ranked server-parameter candidates:
 
@@ -171,7 +210,8 @@ results/<run_id>/
   failures.csv
   rankings.csv
   report.md            # includes a Server parameter configs section
-  plots/
+  report.html          # interactive single-file report (default; --no-html to skip)
+  plots/               # only if --plots
 ```
 
 ## Objective
@@ -180,7 +220,14 @@ Default ranking is simple and auditable:
 
 1. treat each `candidate_id` as one server-parameter vector
 2. keep only valid measurements
-3. apply latency constraints if configured
-4. rank by `output_tok_s_per_gpu` descending per workload constraint
+3. apply latency constraints from `objective.constraints` (e.g. `p99_ttft_ms`, `p99_tpot_ms`)
+4. rank by the configured objective descending per workload constraint
+
+Two objectives are supported via `objective.maximize`:
+
+- `output_tok_s_per_gpu` — raw throughput per GPU; SLO violators are filtered out before ranking.
+- `goodput_at_slo` (default in the 4-GPU configs) — `median_output_tok_s_per_gpu` when all `objective.constraints` are met, else `0`. Keeps SLO violators visible in `rankings.csv` (with goodput=0) rather than dropping them, so "fast but tail-broken" candidates still surface in the report.
+
+Global-winner ranking across workloads is the geomean of `relative_to_best` per workload, with median rank as tiebreaker.
 
 Stage/exploration/validation are not hardcoded concepts. They are just different YAML configs with different grids and repeat counts.
