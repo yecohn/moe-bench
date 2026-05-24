@@ -1,0 +1,282 @@
+# Quick sweep for Qwen3-30B-A3B on 4 GPUs. Designed for ~2h wall-clock.
+#
+# Design:
+#   - Same 24 candidates as the grid sweep (4 parallelism strategies x 3 scheduler points x 2 backends).
+#   - Aggressive workload trim: drop conc=1 (the 40-min cells that killed the grid),
+#     drop input_len=16384 (slow prefill), drop output_len=1024 (slow decode).
+#   - num_prompts cut from 128 to 32 (every cell ~4x faster).
+#
+# Sweep size: 24 candidates x 6 workloads x 1 repeat = 144 cells. ~2h wall-clock.
+# Goal: real backend comparison + parallelism-strategy story, fast.
+# Skipped on purpose:
+#   - single-stream latency (conc=1)  - needs separate latency-focused run
+#   - long-context (input=16384)       - separate long-context sweep if needed
+#   - long-output (output=1024)        - same
+
+experiment:
+  name: qwen3-a3b-4gpu-quick
+  run_id: qwen3-a3b-4gpu-quick
+  model: Qwen/Qwen3-30B-A3B
+  gpus: 4
+  dtype: bfloat16
+  host: 127.0.0.1
+
+execution:
+  repeats: 1
+  resume: true
+  fail_fast: false
+  server_ready_timeout_sec: 1200
+  bench_timeout_sec: 600
+  cool_down_sec: 10
+
+backends:
+  vllm:
+    enabled: true
+    python: .backends/vllm/bin/python
+    port: 19100
+    served_model_name: moe-bench-qwen3-a3b
+  sglang:
+    enabled: true
+    python: .backends/sglang/bin/python
+    port: 19101
+
+# Naming convention: <backend>_<parallelism>_<scheduler>
+#   parallelism: tp4 / tp4ep / tp2dp2ep / tp1dp4ep / dpattn (SGLang only)
+#   scheduler:   s<max_seqs>_bt<max_batched_tokens>   (vLLM)
+#                req<max_running_reqs>_chunk<chunked_prefill>  (SGLang)
+serve_configs:
+  # ----------------------------- vLLM (12) -----------------------------
+  # TP-only baseline x 3 scheduler points
+  - name: vllm_tp4_s64_bt4096
+    vllm: &vllm_tp4_base
+      tensor_parallel_size: 4
+      data_parallel_size: 1
+      enable_expert_parallel: false
+      dtype: bfloat16
+      moe_backend: auto
+      gpu_memory_utilization: 0.90
+      enable_prefix_caching: false
+      max_num_seqs: 64
+      max_num_batched_tokens: 4096
+  - name: vllm_tp4_s128_bt8192
+    vllm:
+      <<: *vllm_tp4_base
+      max_num_seqs: 128
+      max_num_batched_tokens: 8192
+  - name: vllm_tp4_s256_bt16384
+    vllm:
+      <<: *vllm_tp4_base
+      max_num_seqs: 256
+      max_num_batched_tokens: 16384
+
+  # TP + EP x 3 scheduler points
+  - name: vllm_tp4ep_s64_bt4096
+    vllm: &vllm_tp4ep_base
+      tensor_parallel_size: 4
+      data_parallel_size: 1
+      enable_expert_parallel: true
+      enable_ep_weight_filter: true
+      dtype: bfloat16
+      moe_backend: auto
+      all2all_backend: allgather_reducescatter
+      expert_placement_strategy: linear
+      gpu_memory_utilization: 0.90
+      enable_prefix_caching: false
+      max_num_seqs: 64
+      max_num_batched_tokens: 4096
+  - name: vllm_tp4ep_s128_bt8192
+    vllm:
+      <<: *vllm_tp4ep_base
+      max_num_seqs: 128
+      max_num_batched_tokens: 8192
+  - name: vllm_tp4ep_s256_bt16384
+    vllm:
+      <<: *vllm_tp4ep_base
+      max_num_seqs: 256
+      max_num_batched_tokens: 16384
+
+  # TP2 x DP2 + EP x 3 scheduler points
+  - name: vllm_tp2dp2ep_s64_bt4096
+    vllm: &vllm_tp2dp2ep_base
+      tensor_parallel_size: 2
+      data_parallel_size: 2
+      enable_expert_parallel: true
+      enable_ep_weight_filter: true
+      dtype: bfloat16
+      moe_backend: auto
+      all2all_backend: allgather_reducescatter
+      expert_placement_strategy: linear
+      gpu_memory_utilization: 0.90
+      enable_prefix_caching: false
+      max_num_seqs: 64
+      max_num_batched_tokens: 4096
+  - name: vllm_tp2dp2ep_s128_bt8192
+    vllm:
+      <<: *vllm_tp2dp2ep_base
+      max_num_seqs: 128
+      max_num_batched_tokens: 8192
+  - name: vllm_tp2dp2ep_s256_bt16384
+    vllm:
+      <<: *vllm_tp2dp2ep_base
+      max_num_seqs: 256
+      max_num_batched_tokens: 16384
+
+  # Pure DP + EP x 3 scheduler points
+  - name: vllm_tp1dp4ep_s64_bt4096
+    vllm: &vllm_tp1dp4ep_base
+      tensor_parallel_size: 1
+      data_parallel_size: 4
+      enable_expert_parallel: true
+      enable_ep_weight_filter: true
+      dtype: bfloat16
+      moe_backend: auto
+      all2all_backend: allgather_reducescatter
+      expert_placement_strategy: linear
+      gpu_memory_utilization: 0.90
+      enable_prefix_caching: false
+      max_num_seqs: 64
+      max_num_batched_tokens: 4096
+  - name: vllm_tp1dp4ep_s128_bt8192
+    vllm:
+      <<: *vllm_tp1dp4ep_base
+      max_num_seqs: 128
+      max_num_batched_tokens: 8192
+  - name: vllm_tp1dp4ep_s256_bt16384
+    vllm:
+      <<: *vllm_tp1dp4ep_base
+      max_num_seqs: 256
+      max_num_batched_tokens: 16384
+
+  # ----------------------------- SGLang (12) -----------------------------
+  # TP-only baseline x 3 scheduler points
+  - name: sglang_tp4_req64_chunk4096
+    sglang: &sglang_tp4_base
+      tp: 4
+      dtype: bfloat16
+      context_length: 16384
+      mem_fraction_static: 0.90
+      attention_backend: flashinfer
+      disable_radix_cache: true
+      max_running_requests: 64
+      chunked_prefill_size: 4096
+  - name: sglang_tp4_req128_chunk8192
+    sglang:
+      <<: *sglang_tp4_base
+      max_running_requests: 128
+      chunked_prefill_size: 8192
+  - name: sglang_tp4_req256_chunk16384
+    sglang:
+      <<: *sglang_tp4_base
+      max_running_requests: 256
+      chunked_prefill_size: 16384
+
+  # TP + EP x 3 scheduler points
+  - name: sglang_tp4ep_req64_chunk4096
+    sglang: &sglang_tp4ep_base
+      tp: 4
+      ep: 4
+      dtype: bfloat16
+      context_length: 16384
+      mem_fraction_static: 0.90
+      attention_backend: flashinfer
+      moe_runner_backend: auto
+      moe_a2a_backend: none
+      disable_radix_cache: true
+      max_running_requests: 64
+      chunked_prefill_size: 4096
+  - name: sglang_tp4ep_req128_chunk8192
+    sglang:
+      <<: *sglang_tp4ep_base
+      max_running_requests: 128
+      chunked_prefill_size: 8192
+  - name: sglang_tp4ep_req256_chunk16384
+    sglang:
+      <<: *sglang_tp4ep_base
+      max_running_requests: 256
+      chunked_prefill_size: 16384
+
+  # DP-attention + EP x 3 scheduler points (SGLang-specific knob)
+  - name: sglang_tp4dpattn_ep_req64_chunk4096
+    sglang: &sglang_tp4dpattn_base
+      tp: 4
+      dp: 4
+      enable_dp_attention: true
+      ep: 4
+      dtype: bfloat16
+      context_length: 16384
+      mem_fraction_static: 0.90
+      attention_backend: triton
+      moe_runner_backend: auto
+      moe_a2a_backend: none
+      disable_radix_cache: true
+      max_running_requests: 64
+      chunked_prefill_size: 4096
+  - name: sglang_tp4dpattn_ep_req128_chunk8192
+    sglang:
+      <<: *sglang_tp4dpattn_base
+      max_running_requests: 128
+      chunked_prefill_size: 8192
+  - name: sglang_tp4dpattn_ep_req256_chunk16384
+    sglang:
+      <<: *sglang_tp4dpattn_base
+      max_running_requests: 256
+      chunked_prefill_size: 16384
+
+  # TP2 x DP2 + EP x 3 scheduler points (mixed parallelism)
+  - name: sglang_tp2dp2ep_req64_chunk4096
+    sglang: &sglang_tp2dp2ep_base
+      tp: 2
+      dp: 2
+      enable_dp_attention: true
+      ep: 4
+      dtype: bfloat16
+      context_length: 16384
+      mem_fraction_static: 0.90
+      attention_backend: triton
+      moe_runner_backend: auto
+      moe_a2a_backend: none
+      disable_radix_cache: true
+      max_running_requests: 64
+      chunked_prefill_size: 4096
+  - name: sglang_tp2dp2ep_req128_chunk8192
+    sglang:
+      <<: *sglang_tp2dp2ep_base
+      max_running_requests: 128
+      chunked_prefill_size: 8192
+  - name: sglang_tp2dp2ep_req256_chunk16384
+    sglang:
+      <<: *sglang_tp2dp2ep_base
+      max_running_requests: 256
+      chunked_prefill_size: 16384
+
+workloads:
+  input_lens: [256, 4096]
+  output_lens: [128]
+  concurrencies: [4, 16, 64]
+  num_prompts: 32
+  num_warmups: 4
+  seeds: [0]
+  random_range_ratio: "0.0"
+
+# Goodput-at-SLO: rank by output_tok_s_per_gpu conditional on meeting both p99 SLOs.
+# Candidates that violate either SLO get goodput_at_slo = 0 instead of being filtered out.
+objective:
+  maximize: goodput_at_slo
+  constraints:
+    p99_ttft_ms: 2000
+    p99_tpot_ms: 100
+
+report:
+  legend_params:
+    - tensor_parallel_size
+    - data_parallel_size
+    - enable_expert_parallel
+    - max_num_seqs
+    - max_num_batched_tokens
+    - tp
+    - dp
+    - ep
+    - enable_dp_attention
+    - attention_backend
+    - max_running_requests
+    - chunked_prefill_size

@@ -1,0 +1,66 @@
+experiment:
+  name: stack-search-smoke
+  model: facebook/opt-125m
+  gpus: 1
+  dtype: float16
+  host: 127.0.0.1
+
+execution:
+  repeats: 1
+  resume: true
+  fail_fast: false
+  server_ready_timeout_sec: 300
+  bench_timeout_sec: 300
+  cool_down_sec: 3
+
+backends:
+  vllm:
+    enabled: true
+    python: .backends/vllm/bin/python
+    port: 18100
+    served_model_name: moe-bench-search-smoke
+  sglang:
+    enabled: true
+    python: .backends/sglang/bin/python
+    port: 18101
+
+search_space:
+  vllm:
+    defaults:
+      tensor_parallel_size: 1
+      data_parallel_size: 1
+      max_model_len: 1024
+      gpu_memory_utilization: 0.45
+      enable_prefix_caching: false
+    grid:
+      max_num_seqs: [8, 16]
+      max_num_batched_tokens: [512]
+  sglang:
+    defaults:
+      tp: 1
+      context_length: 1024
+      mem_fraction_static: 0.45
+      disable_radix_cache: true
+    grid:
+      max_running_requests: [8, 16]
+      chunked_prefill_size: [512]
+
+workloads:
+  input_lens: [32]
+  output_lens: [8]
+  concurrencies: [1]
+  num_prompts: 4
+  num_warmups: 1
+  seeds: [0]
+  random_range_ratio: "0.0"
+
+objective:
+  maximize: output_tok_s_per_gpu
+  constraints:
+    p99_ttft_ms: null
+    p99_tpot_ms: null
+
+report:
+  # Choose which server params appear in plot legends. Full candidate details
+  # remain in candidates.csv and in the report candidate section.
+  legend_params: [max_num_seqs, max_running_requests]

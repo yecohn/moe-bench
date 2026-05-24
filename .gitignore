@@ -1,0 +1,7 @@
+.venv/
+.backends/
+__pycache__/
+*.pyc
+*.egg-info/
+results/*
+!results/.gitkeep

@@ -1,0 +1,60 @@
+experiment:
+  name: stack-smoke
+  model: facebook/opt-125m
+  gpus: 1
+  dtype: float16
+  host: 127.0.0.1
+
+execution:
+  repeats: 1
+  resume: true
+  fail_fast: false
+  server_ready_timeout_sec: 300
+  bench_timeout_sec: 300
+  cool_down_sec: 5
+
+backends:
+  vllm:
+    enabled: true
+    # Fast local smoke uses the existing repo env. For production, prefer .backends/vllm/bin/python.
+    python: .backends/vllm/bin/python
+    port: 18000
+    served_model_name: moe-bench-smoke
+  sglang:
+    enabled: true
+    # Fast local smoke uses the existing repo env. For production, prefer .backends/sglang/bin/python.
+    python: .backends/sglang/bin/python
+    port: 18001
+
+serve_configs:
+  - name: tp1_tiny
+    vllm:
+      tensor_parallel_size: 1
+      data_parallel_size: 1
+      max_model_len: 1024
+      max_num_seqs: 8
+      max_num_batched_tokens: 512
+      gpu_memory_utilization: 0.45
+      enable_prefix_caching: false
+    sglang:
+      tp: 1
+      context_length: 1024
+      mem_fraction_static: 0.45
+      max_running_requests: 8
+      chunked_prefill_size: 512
+      disable_radix_cache: true
+
+workloads:
+  input_lens: [32]
+  output_lens: [8]
+  concurrencies: [1]
+  num_prompts: 4
+  num_warmups: 1
+  seeds: [0]
+  random_range_ratio: "0.0"
+
+objective:
+  maximize: output_tok_s_per_gpu
+  constraints:
+    p99_ttft_ms: null
+    p99_tpot_ms: null

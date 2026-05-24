@@ -1,0 +1,137 @@
+experiment:
+  name: qwen3-a3b
+  model: Qwen/Qwen3-30B-A3B
+  gpus: 4
+  dtype: bfloat16
+  host: 127.0.0.1
+
+execution:
+  repeats: 1
+  resume: true
+  fail_fast: false
+  server_ready_timeout_sec: 1200
+  bench_timeout_sec: 2400
+  cool_down_sec: 10
+
+backends:
+  vllm:
+    enabled: true
+    # Build with: ./scripts/create_backend_venvs.sh vllm
+    python: .backends/vllm/bin/python
+    port: 8000
+    served_model_name: moe-bench
+  sglang:
+    enabled: true
+    # Build with: ./scripts/create_backend_venvs.sh sglang
+    python: .backends/sglang/bin/python
+    port: 30000
+
+serve_configs:
+  - name: tp4_noep_bal_8k_s128
+    vllm:
+      tensor_parallel_size: 4
+      data_parallel_size: 1
+      enable_expert_parallel: false
+      moe_backend: auto
+      max_num_seqs: 128
+      max_num_batched_tokens: 8192
+      gpu_memory_utilization: 0.85
+      block_size: 16
+      enable_prefix_caching: false
+    sglang:
+      tp: 4
+      context_length: 8192
+      mem_fraction_static: 0.85
+      max_running_requests: 128
+      chunked_prefill_size: 8192
+      disable_radix_cache: true
+
+  - name: tp4_ep_bal_8k_s128
+    vllm:
+      tensor_parallel_size: 4
+      data_parallel_size: 1
+      enable_expert_parallel: true
+      enable_ep_weight_filter: true
+      all2all_backend: allgather_reducescatter
+      expert_placement_strategy: linear
+      moe_backend: auto
+      max_num_seqs: 128
+      max_num_batched_tokens: 8192
+      gpu_memory_utilization: 0.85
+      block_size: 16
+      enable_prefix_caching: false
+    sglang:
+      tp: 4
+      context_length: 8192
+      mem_fraction_static: 0.85
+      max_running_requests: 128
+      chunked_prefill_size: 8192
+      disable_radix_cache: true
+      ep: 4
+
+  - name: tp2dp2_ep_bal_8k_s128
+    vllm:
+      tensor_parallel_size: 2
+      data_parallel_size: 2
+      enable_expert_parallel: true
+      enable_ep_weight_filter: true
+      all2all_backend: allgather_reducescatter
+      expert_placement_strategy: linear
+      moe_backend: auto
+      max_num_seqs: 128
+      max_num_batched_tokens: 8192
+      gpu_memory_utilization: 0.85
+      block_size: 16
+      enable_prefix_caching: false
+    sglang:
+      tp: 4
+      context_length: 8192
+      mem_fraction_static: 0.85
+      max_running_requests: 128
+      chunked_prefill_size: 8192
+      disable_radix_cache: true
+      dp: 2
+      enable_dp_attention: true
+      ep: 4
+      attention_backend: triton
+
+  - name: tp1dp4_ep_bal_8k_s128
+    vllm:
+      tensor_parallel_size: 1
+      data_parallel_size: 4
+      enable_expert_parallel: true
+      enable_ep_weight_filter: true
+      all2all_backend: allgather_reducescatter
+      expert_placement_strategy: linear
+      moe_backend: auto
+      max_num_seqs: 128
+      max_num_batched_tokens: 8192
+      gpu_memory_utilization: 0.85
+      block_size: 16
+      enable_prefix_caching: false
+    sglang:
+      tp: 4
+      context_length: 8192
+      mem_fraction_static: 0.85
+      max_running_requests: 128
+      chunked_prefill_size: 8192
+      disable_radix_cache: true
+      dp: 4
+      enable_dp_attention: true
+      ep: 4
+      attention_backend: triton
+
+workloads:
+  input_lens: [256, 1024, 2048, 4096, 6144]
+  output_lens: [128]
+  concurrencies: [1, 16, 64, 128]
+  num_prompts: 256
+  num_warmups: 32
+  seeds: [0]
+  random_range_ratio: "0.0"
+
+objective:
+  maximize: output_tok_s_per_gpu
+  constraints:
+    p99_ttft_ms: null
+    p99_tpot_ms: null

@@ -1,0 +1,23 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "moe-bench"
+version = "0.1.0"
+description = "Small inference benchmark platform for vLLM/SGLang MoE sweeps"
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = [
+  "PyYAML>=6.0",
+  "pandas>=2.0",
+  "matplotlib>=3.7",
+  "seaborn>=0.12",
+  "plotly>=5.18",
+]
+
+[project.scripts]
+moe-bench = "moe_bench.cli:main"
+
+[tool.setuptools]
+packages = ["moe_bench"]
