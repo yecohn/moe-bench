@@ -1,4 +1,6 @@
 
+![Interactive HTML report](screenshot.png)
+
 https://htmlpreview.github.io/?https://github.com/yecohn/moe-bench/blob/main/results/qwen3-a3b-4gpu-parallelism/report.html
 
 # moe-bench
