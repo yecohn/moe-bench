@@ -1,3 +1,6 @@
+
+https://htmlpreview.github.io/?https://github.com/yecohn/moe-bench/blob/main/results/qwen3-a3b-4gpu-parallelism/report.html
+
 # moe-bench
 
 `moe-bench` is a small benchmark platform for finding good LLM/MoE inference serving configs across vLLM and SGLang.
