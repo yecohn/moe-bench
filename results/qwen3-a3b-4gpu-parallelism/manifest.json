@@ -1,0 +1,26 @@
+{
+  "backends": {
+    "sglang": {
+      "enabled": true,
+      "python": ".backends/sglang/bin/python",
+      "version": "0.5.12.dev71+gc4c0376fc",
+      "version_error": null
+    },
+    "vllm": {
+      "enabled": true,
+      "python": ".backends/vllm/bin/python",
+      "version": "0.20.2rc1.dev50+g48954de23.d20260519",
+      "version_error": null
+    }
+  },
+  "config_hash": "7339d967a036",
+  "cuda_visible_devices": "0,1,2,3",
+  "dtype": "bfloat16",
+  "finished_at": "2026-05-24T17:32:10+00:00",
+  "gpus": 4,
+  "model": "Qwen/Qwen3-30B-A3B",
+  "nvidia_smi": "index, name, memory.total [MiB]\n0, NVIDIA A100-PCIE-40GB, 40960 MiB\n1, NVIDIA A100-PCIE-40GB, 40960 MiB\n2, NVIDIA A100-PCIE-40GB, 40960 MiB\n3, NVIDIA A100-PCIE-40GB, 40960 MiB",
+  "platform_version": "0.1.0",
+  "run_id": "qwen3-a3b-4gpu-parallelism",
+  "started_at": "2026-05-24T16:56:50+00:00"
+}

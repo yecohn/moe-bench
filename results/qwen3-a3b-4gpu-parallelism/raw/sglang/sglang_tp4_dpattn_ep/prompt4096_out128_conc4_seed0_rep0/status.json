@@ -1,0 +1,38 @@
+{
+  "backend": "sglang",
+  "candidate_id": "058c3e72a3b9",
+  "elapsed_sec": 48.189,
+  "failure_reason": null,
+  "log_tail": null,
+  "result_path": "results/qwen3-a3b-4gpu-parallelism/raw/sglang/sglang_tp4_dpattn_ep/prompt4096_out128_conc4_seed0_rep0/result.json",
+  "returncode": 0,
+  "serve_config": "sglang_tp4_dpattn_ep",
+  "server_params": {
+    "attention_backend": "triton",
+    "chunked_prefill_size": 8192,
+    "context_length": 8192,
+    "disable_radix_cache": true,
+    "dp": 4,
+    "dtype": "bfloat16",
+    "enable_dp_attention": true,
+    "ep": 4,
+    "max_running_requests": 128,
+    "mem_fraction_static": 0.85,
+    "moe_a2a_backend": "none",
+    "moe_runner_backend": "auto",
+    "tp": 4
+  },
+  "valid": true,
+  "workload": {
+    "input_len": 4096,
+    "max_concurrency": 4,
+    "name": "prompt4096_out128_conc4_seed0_rep0",
+    "num_prompts": 32,
+    "num_warmups": 4,
+    "output_len": 128,
+    "random_range_ratio": "0.0",
+    "repeat": 0,
+    "request_rate": "inf",
+    "seed": 0
+  }
+}

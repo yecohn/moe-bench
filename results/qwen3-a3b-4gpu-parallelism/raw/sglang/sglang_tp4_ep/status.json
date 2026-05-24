@@ -1,0 +1,20 @@
+{
+  "backend": "sglang",
+  "candidate_id": "062e476d673a",
+  "serve_config": "sglang_tp4_ep",
+  "server_params": {
+    "attention_backend": "flashinfer",
+    "chunked_prefill_size": 8192,
+    "context_length": 8192,
+    "disable_radix_cache": true,
+    "dtype": "bfloat16",
+    "ep": 4,
+    "max_running_requests": 128,
+    "mem_fraction_static": 0.85,
+    "moe_a2a_backend": "none",
+    "moe_runner_backend": "auto",
+    "tp": 4
+  },
+  "status": "ready",
+  "valid": true
+}

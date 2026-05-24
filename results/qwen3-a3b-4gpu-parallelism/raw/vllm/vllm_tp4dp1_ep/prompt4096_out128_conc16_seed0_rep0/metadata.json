@@ -1,0 +1,48 @@
+{
+  "backend": "vllm",
+  "candidate_id": "5caf3fdc02e4",
+  "serve": {
+    "name": "vllm_tp4dp1_ep",
+    "vllm": {
+      "all2all_backend": "allgather_reducescatter",
+      "data_parallel_size": 1,
+      "dtype": "bfloat16",
+      "enable_ep_weight_filter": true,
+      "enable_expert_parallel": true,
+      "enable_prefix_caching": false,
+      "expert_placement_strategy": "linear",
+      "gpu_memory_utilization": 0.85,
+      "max_num_batched_tokens": 8192,
+      "max_num_seqs": 128,
+      "moe_backend": "auto",
+      "tensor_parallel_size": 4
+    }
+  },
+  "serve_config": "vllm_tp4dp1_ep",
+  "server_params": {
+    "all2all_backend": "allgather_reducescatter",
+    "data_parallel_size": 1,
+    "dtype": "bfloat16",
+    "enable_ep_weight_filter": true,
+    "enable_expert_parallel": true,
+    "enable_prefix_caching": false,
+    "expert_placement_strategy": "linear",
+    "gpu_memory_utilization": 0.85,
+    "max_num_batched_tokens": 8192,
+    "max_num_seqs": 128,
+    "moe_backend": "auto",
+    "tensor_parallel_size": 4
+  },
+  "workload": {
+    "input_len": 4096,
+    "max_concurrency": 16,
+    "name": "prompt4096_out128_conc16_seed0_rep0",
+    "num_prompts": 32,
+    "num_warmups": 4,
+    "output_len": 128,
+    "random_range_ratio": "0.0",
+    "repeat": 0,
+    "request_rate": "inf",
+    "seed": 0
+  }
+}

@@ -5,4 +5,5 @@ __pycache__/
 *.egg-info/
 results/*
 !results/.gitkeep
+!results/qwen3-a3b-4gpu-parallelism/
 .claude/

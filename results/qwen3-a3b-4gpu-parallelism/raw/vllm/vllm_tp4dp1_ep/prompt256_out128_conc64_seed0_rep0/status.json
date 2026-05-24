@@ -1,0 +1,37 @@
+{
+  "backend": "vllm",
+  "candidate_id": "5caf3fdc02e4",
+  "elapsed_sec": 35.47,
+  "failure_reason": null,
+  "log_tail": null,
+  "result_path": "results/qwen3-a3b-4gpu-parallelism/raw/vllm/vllm_tp4dp1_ep/prompt256_out128_conc64_seed0_rep0/result.json",
+  "returncode": 0,
+  "serve_config": "vllm_tp4dp1_ep",
+  "server_params": {
+    "all2all_backend": "allgather_reducescatter",
+    "data_parallel_size": 1,
+    "dtype": "bfloat16",
+    "enable_ep_weight_filter": true,
+    "enable_expert_parallel": true,
+    "enable_prefix_caching": false,
+    "expert_placement_strategy": "linear",
+    "gpu_memory_utilization": 0.85,
+    "max_num_batched_tokens": 8192,
+    "max_num_seqs": 128,
+    "moe_backend": "auto",
+    "tensor_parallel_size": 4
+  },
+  "valid": true,
+  "workload": {
+    "input_len": 256,
+    "max_concurrency": 64,
+    "name": "prompt256_out128_conc64_seed0_rep0",
+    "num_prompts": 32,
+    "num_warmups": 4,
+    "output_len": 128,
+    "random_range_ratio": "0.0",
+    "repeat": 0,
+    "request_rate": "inf",
+    "seed": 0
+  }
+}

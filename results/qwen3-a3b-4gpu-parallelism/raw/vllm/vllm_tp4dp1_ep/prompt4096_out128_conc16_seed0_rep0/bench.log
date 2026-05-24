@@ -1,0 +1,55 @@
+INFO 05-24 15:44:16 [nixl_utils.py:20] Setting UCX_RCACHE_MAX_UNRELEASED to '1024' to avoid a rare memory leak in UCX when using NIXL.
+WARNING 05-24 15:44:16 [nixl_utils.py:34] NIXL is not available
+WARNING 05-24 15:44:16 [nixl_utils.py:44] NIXL agent config is not available
+Namespace(subparser='bench', bench_type='serve', dispatch_function=<function BenchmarkServingSubcommand.cmd at 0x65b49cb8540>, trust_remote_code=False, seed=0, num_prompts=32, dataset_name='random', no_stream=False, dataset_path=None, no_oversample=False, skip_chat_template=False, enable_multimodal_chat=False, disable_shuffle=False, custom_output_len=256, spec_bench_output_len=256, spec_bench_category=None, sonnet_input_len=550, sonnet_output_len=150, sonnet_prefix_len=200, sharegpt_output_len=None, blazedit_min_distance=0.0, blazedit_max_distance=1.0, asr_max_audio_len_sec=inf, asr_min_audio_len_sec=0.0, random_input_len=4096, random_output_len=128, random_range_ratio='0.0', random_prefix_len=0, random_batch_size=1, no_reranker=False, random_mm_base_items_per_request=1, random_mm_num_mm_items_range_ratio=0.0, random_mm_limit_mm_per_prompt={'image': 255, 'video': 1}, random_mm_bucket_config={(256, 256, 1): 0.5, (720, 1280, 1): 0.5, (720, 1280, 16): 0.0}, hf_subset=None, hf_split=None, hf_name=None, hf_output_len=None, prefix_repetition_prefix_len=256, prefix_repetition_suffix_len=256, prefix_repetition_num_prefixes=10, prefix_repetition_output_len=128, speed_bench_dataset_subset='qualitative', speed_bench_output_len=4096, speed_bench_category=None, label=None, backend='vllm', base_url=None, host='127.0.0.1', port=19100, endpoint='/v1/completions', header=None, max_concurrency=16, model='moe-bench-qwen3-a3b-4gpu-parallelism', input_len=None, output_len=None, tokenizer='Qwen/Qwen3-30B-A3B', tokenizer_mode='auto', use_beam_search=False, logprobs=None, request_rate=inf, burstiness=1.0, disable_tqdm=True, num_warmups=4, profile=False, save_result=True, save_detailed=False, append_result=False, metadata=None, result_dir='results/qwen3-a3b-4gpu-parallelism/raw/vllm/vllm_tp4dp1_ep/prompt4096_out128_conc16_seed0_rep0', result_filename='result.json', ignore_eos=True, percentile_metrics='ttft,tpot,itl,e2el', metric_percentiles='50,90,95,99', goodput=None, request_id_prefix='bench-251a59ca-', top_p=None, top_k=None, min_p=None, temperature=0.0, frequency_penalty=None, presence_penalty=None, repetition_penalty=None, served_model_name=None, lora_modules=None, lora_assignment='random', ramp_up_strategy=None, ramp_up_start_rps=None, ramp_up_end_rps=None, ready_check_timeout_sec=0, extra_body=None, skip_tokenizer_init=False, insecure=False, plot_timeline=False, timeline_itl_thresholds='25,50', plot_dataset_stats=False)
+INFO 05-24 15:44:20 [utils.py:90] Sampling input_len from [4096, 4096] and output_len from [128, 128]
+Starting initial single prompt test run...
+Skipping endpoint ready check.
+Warming up with 4 requests...
+Warmup run completed.
+Starting main benchmark run...
+Traffic request rate: inf
+Burstiness factor: 1.0 (Poisson process)
+Maximum request concurrency: 16
+tip: install termplotlib and gnuplot to plot the metrics
+============ Serving Benchmark Result ============
+Successful requests:                     32        
+Failed requests:                         0         
+Maximum request concurrency:             16        
+Benchmark duration (s):                  25.53     
+Total input tokens:                      131072    
+Total generated tokens:                  4096      
+Request throughput (req/s):              1.25      
+Output token throughput (tok/s):         160.46    
+Peak output token throughput (tok/s):    864.00    
+Peak concurrent requests:                26.00     
+Total token throughput (tok/s):          5295.14   
+---------------Time to First Token----------------
+Mean TTFT (ms):                          6184.29   
+Median TTFT (ms):                        6541.54   
+P50 TTFT (ms):                           6541.54   
+P90 TTFT (ms):                           9723.47   
+P95 TTFT (ms):                           10104.78  
+P99 TTFT (ms):                           10476.64  
+-----Time per Output Token (excl. 1st token)------
+Mean TPOT (ms):                          51.57     
+Median TPOT (ms):                        48.75     
+P50 TPOT (ms):                           48.75     
+P90 TPOT (ms):                           82.81     
+P95 TPOT (ms):                           88.37     
+P99 TPOT (ms):                           93.90     
+---------------Inter-token Latency----------------
+Mean ITL (ms):                           51.57     
+Median ITL (ms):                         18.69     
+P50 ITL (ms):                            18.69     
+P90 ITL (ms):                            19.62     
+P95 ITL (ms):                            20.04     
+P99 ITL (ms):                            1291.30   
+----------------End-to-end Latency----------------
+Mean E2EL (ms):                          12733.36  
+Median E2EL (ms):                        12720.17  
+P50 E2EL (ms):                           12720.17  
+P90 E2EL (ms):                           13441.47  
+P95 E2EL (ms):                           14028.25  
+P99 E2EL (ms):                           14743.49  
+==================================================

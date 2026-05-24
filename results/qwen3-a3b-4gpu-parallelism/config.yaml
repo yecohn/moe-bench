@@ -1,0 +1,182 @@
+# Parallelism exploration sweep for MoE models on 4 GPUs.
+#
+# Model-agnostic: the model id, run id, served model name, and dtype are intended
+# to be overridden at the CLI via `moe-bench run ... --model X --run-id Y
+# --served-model-name Z --dtype D`. The defaults below target Qwen3-30B-A3B on
+# A100-PCIE-40GB but the candidate list works for any MoE model that fits the
+# per-GPU memory budget under TP=4 or TP=2 DP=2.
+#
+# Goal: isolate the EP / DP / TP axis. Every candidate uses all 4 GPUs but with a
+# different parallelism layout. Scheduler capacity is fixed at one balanced point
+# (max_num_seqs=128, max_num_batched_tokens=8192 for vLLM; analogous for SGLang)
+# so that performance differences are attributable to the parallelism choice, not
+# to capacity tuning.
+#
+# vLLM layouts (4 candidates):
+#   world_size = TP x DP, EP is an orthogonal toggle
+#   (TP=4 DP=1) x EP {off, on}
+#   (TP=2 DP=2) x EP {off, on}
+#   Note: pure-DP (TP=1 DP=4) is omitted because for ~30B+ MoE models in bfloat16
+#   the full-model replica does not fit per 40 GiB GPU. If you point this config
+#   at a smaller model (<~20 GiB weights) you can add TP=1 DP=4 candidates.
+#
+# SGLang layouts (5 candidates):
+#   SGLang's world_size = tp; dp and ep are sub-divisions for attention / MoE.
+#   Pure-DP across GPUs without TP is not supported the way it is in vLLM.
+#   TP=4, no EP, no dp_attn                     (baseline)
+#   TP=4, EP=4, no dp_attn                      (expert parallel)
+#   TP=4, dp=4 dp_attn=on, no EP                (DP attention only)
+#   TP=4, dp=4 dp_attn=on, EP=4                 (DP attention + EP - SGLang flagship)
+#   TP=4, dp=2 dp_attn=on, EP=4                 (mixed DP attention + EP)
+#
+# Workloads: same 6-cell grid as the quick config (input 256/4096 x output 128 x conc 4/16/64).
+# Total cells: 9 candidates x 6 workloads = 54. Target wall-clock ~1h.
+#
+# gpu_memory_utilization / mem_fraction_static are set to 0.85 (not 0.90) so vLLM's
+# per-rank free-memory check passes after NCCL P2P buffers are allocated during init.
+# At 0.90 the first TP=4 candidate on Qwen3-30B-A3B / A100-40GB failed with
+# "Free memory on device cuda:3 (34.35 GiB) < desired 35.54 GiB" because peer ranks
+# had already grabbed ~5 GiB of P2P memory on cuda:3 by the time worker 3 ran its
+# check. 0.85 leaves enough headroom for the NCCL P2P overhead on this hardware
+# class; bigger models or hotter GPUs may want 0.80.
+
+experiment:
+  name: qwen3-a3b-4gpu-parallelism
+  run_id: qwen3-a3b-4gpu-parallelism
+  model: Qwen/Qwen3-30B-A3B
+  gpus: 4
+  dtype: bfloat16
+  host: 127.0.0.1
+
+execution:
+  repeats: 1
+  resume: true
+  fail_fast: false
+  server_ready_timeout_sec: 1200
+  bench_timeout_sec: 600
+  cool_down_sec: 10
+
+backends:
+  vllm:
+    enabled: true
+    python: .backends/vllm/bin/python
+    port: 19100
+    served_model_name: moe-bench-qwen3-a3b
+  sglang:
+    enabled: true
+    python: .backends/sglang/bin/python
+    port: 19101
+
+# Naming: <backend>_tp<TP>dp<DP>[_ep][_dpattn]
+serve_configs:
+  # ----------------------------- vLLM (6) -----------------------------
+  - name: vllm_tp4dp1
+    vllm: &vllm_common
+      dtype: bfloat16
+      moe_backend: auto
+      gpu_memory_utilization: 0.85
+      enable_prefix_caching: false
+      max_num_seqs: 128
+      max_num_batched_tokens: 8192
+      tensor_parallel_size: 4
+      data_parallel_size: 1
+      enable_expert_parallel: false
+
+  - name: vllm_tp4dp1_ep
+    vllm:
+      <<: *vllm_common
+      tensor_parallel_size: 4
+      data_parallel_size: 1
+      enable_expert_parallel: true
+      enable_ep_weight_filter: true
+      all2all_backend: allgather_reducescatter
+      expert_placement_strategy: linear
+
+  - name: vllm_tp2dp2
+    vllm:
+      <<: *vllm_common
+      tensor_parallel_size: 2
+      data_parallel_size: 2
+      enable_expert_parallel: false
+
+  - name: vllm_tp2dp2_ep
+    vllm:
+      <<: *vllm_common
+      tensor_parallel_size: 2
+      data_parallel_size: 2
+      enable_expert_parallel: true
+      enable_ep_weight_filter: true
+      all2all_backend: allgather_reducescatter
+      expert_placement_strategy: linear
+
+  # ----------------------------- SGLang (5) -----------------------------
+  - name: sglang_tp4
+    sglang: &sglang_common
+      tp: 4
+      dtype: bfloat16
+      context_length: 8192
+      mem_fraction_static: 0.85
+      disable_radix_cache: true
+      max_running_requests: 128
+      chunked_prefill_size: 8192
+
+  - name: sglang_tp4_ep
+    sglang:
+      <<: *sglang_common
+      attention_backend: flashinfer
+      ep: 4
+      moe_runner_backend: auto
+      moe_a2a_backend: none
+
+  - name: sglang_tp4_dpattn
+    sglang:
+      <<: *sglang_common
+      attention_backend: triton
+      dp: 4
+      enable_dp_attention: true
+
+  - name: sglang_tp4_dpattn_ep
+    sglang:
+      <<: *sglang_common
+      attention_backend: triton
+      dp: 4
+      enable_dp_attention: true
+      ep: 4
+      moe_runner_backend: auto
+      moe_a2a_backend: none
+
+  - name: sglang_tp4_dpattn2_ep
+    sglang:
+      <<: *sglang_common
+      attention_backend: triton
+      dp: 2
+      enable_dp_attention: true
+      ep: 4
+      moe_runner_backend: auto
+      moe_a2a_backend: none
+
+workloads:
+  input_lens: [256, 4096]
+  output_lens: [128]
+  concurrencies: [4, 16, 64]
+  num_prompts: 32
+  num_warmups: 4
+  seeds: [0]
+  random_range_ratio: "0.0"
+
+objective:
+  maximize: goodput_at_slo
+  constraints:
+    p99_ttft_ms: 2000
+    p99_tpot_ms: 100
+
+report:
+  legend_params:
+    - tensor_parallel_size
+    - data_parallel_size
+    - enable_expert_parallel
+    - tp
+    - dp
+    - ep
+    - enable_dp_attention
+    - attention_backend

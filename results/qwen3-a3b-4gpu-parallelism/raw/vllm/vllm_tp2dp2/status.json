@@ -1,0 +1,18 @@
+{
+  "backend": "vllm",
+  "candidate_id": "b74cb14ac0c9",
+  "serve_config": "vllm_tp2dp2",
+  "server_params": {
+    "data_parallel_size": 2,
+    "dtype": "bfloat16",
+    "enable_expert_parallel": false,
+    "enable_prefix_caching": false,
+    "gpu_memory_utilization": 0.85,
+    "max_num_batched_tokens": 8192,
+    "max_num_seqs": 128,
+    "moe_backend": "auto",
+    "tensor_parallel_size": 2
+  },
+  "status": "ready",
+  "valid": true
+}

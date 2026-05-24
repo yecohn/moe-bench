@@ -1,0 +1,16 @@
+{
+  "backend": "sglang",
+  "candidate_id": "a14324327f8c",
+  "serve_config": "sglang_tp4",
+  "server_params": {
+    "chunked_prefill_size": 8192,
+    "context_length": 8192,
+    "disable_radix_cache": true,
+    "dtype": "bfloat16",
+    "max_running_requests": 128,
+    "mem_fraction_static": 0.85,
+    "tp": 4
+  },
+  "status": "ready",
+  "valid": true
+}
